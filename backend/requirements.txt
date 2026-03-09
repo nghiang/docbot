@@ -1,0 +1,16 @@
+alembic~=1.18.4
+bcrypt~=5.0.0
+celery~=5.6.2
+fastapi[standard]~=0.135.1
+google-genai~=1.66.0
+minio~=7.2.20
+prometheus-fastapi-instrumentator~=7.0.2
+psycopg2-binary~=2.9.10
+pydantic~=2.12.5
+pydantic-settings~=2.13.1
+PyJWT~=2.11.0
+pymongo~=4.10.0
+python-multipart~=0.0.20
+redis[hiredis]~=7.2.1
+requests~=2.32.5
+sqlmodel~=0.0.37
