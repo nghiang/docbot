@@ -8,6 +8,7 @@ jobs:
   build-and-push:
     # Phải khớp với label lúc bạn cấu hình Runner trên Mac
     runs-on: self-hosted 
+    environment: harbor
 
     env:
       # Địa chỉ Harbor của bạn (không bao gồm http:// khi login/tag)
