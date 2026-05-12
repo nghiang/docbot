@@ -1,4 +1,4 @@
-name: Build and Push to Harbor
+name: Build and Push Multi-Images to Harbor
 
 on:
   push:
@@ -6,43 +6,53 @@ on:
 
 jobs:
   build-and-push:
-    # Phải khớp với label lúc bạn cấu hình Runner trên Mac
-    runs-on: self-hosted 
+    runs-on: self-hosted
     environment: harbor
-
     env:
-      # Địa chỉ Harbor của bạn (không bao gồm http:// khi login/tag)
       HARBOR_REGISTRY: 100.87.103.100:8000
-      # Project ID hoặc Name (thường là tên project, ví dụ: 'docbot' hoặc 'library')
-      # Bạn hãy kiểm tra tên project trong Harbor tương ứng với ID 2
-      HARBOR_PROJECT: docbot 
-      IMAGE_NAME: docbot-app
+      HARBOR_PROJECT: docbot
+      TAG: ${{ github.sha }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Docker Login
-        # Sử dụng --password-stdin để bảo mật mật khẩu
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.HARBOR_REGISTRY }} \
           -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
 
-      - name: Build Docker Image
+      - name: Build all images
         run: |
-          # Tag image theo cấu trúc: registry/project/image:tag
-          docker build -t ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
-          # Gắn thêm tag latest
-          docker tag ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-                     ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:latest
+          # Dùng docker-compose để build tất cả các service có khai báo 'build'
+          # backend, worker, frontend sẽ được build đồng thời
+          docker compose build
 
-      - name: Push Image to Harbor
+      - name: Tag and Push Images
         run: |
-          docker push ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:latest
+          # Danh sách các service cần push (tên khớp với trong docker-compose.yml)
+          SERVICES=("backend" "worker" "frontend")
+          
+          for SERVICE in "${SERVICES[@]}"; do
+            IMAGE_FULL_PATH="${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/docbot-${SERVICE}"
+            
+            # Lấy ID của image vừa build xong
+            # Lưu ý: docker-compose build mặc định tạo tag tên thư mục_service
+            # Ví dụ: docbot_backend
+            LOCAL_IMAGE=$(docker images --format "{{.Repository}}" | grep ${SERVICE} | head -n 1)
+            
+            # Tag với SHA và latest
+            docker tag $LOCAL_IMAGE:latest ${IMAGE_FULL_PATH}:${{ env.TAG }}
+            docker tag $LOCAL_IMAGE:latest ${IMAGE_FULL_PATH}:latest
+            
+            # Push
+            docker push ${IMAGE_FULL_PATH}:${{ env.TAG }}
+            docker push ${IMAGE_FULL_PATH}:latest
+            
+            echo "Successfully pushed ${SERVICE}"
+          done
 
       - name: Clean up
         if: always()
         run: |
-          docker rmi ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker rmi ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:latest
+          docker image prune -f
