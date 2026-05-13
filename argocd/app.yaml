@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: docbot
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    # Update this to your actual git repo URL
+    repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+    targetRevision: main
+    path: k8s
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: docbot
+
+  syncPolicy:
+    automated:
+      prune: true       # delete resources removed from git
+      selfHeal: true    # revert manual changes on the cluster
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: docbot-migrate
+  namespace: docbot
+  annotations:
+    # ArgoCD PreSync hook: runs before every sync, re-created each time
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: migrate
+          image: 100.87.103.100:8000/docbot/docbot-backend:latest
+          imagePullPolicy: Always
+          command: ["python", "migrate.py"]
+          envFrom:
+            - configMapRef:
+                name: docbot-config
+            - secretRef:
+                name: docbot-secret

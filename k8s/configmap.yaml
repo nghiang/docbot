@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docbot-config
+  namespace: docbot
+data:
+  MINIO_BUCKET: "documents"
+  MINIO_SECURE: "false"
+  MINIO_ENDPOINT: "minio:9000"
+  BROKER_URL: "redis://redis:6379/0"
+  REDIS_URL: "redis://redis:6379/0"
+  REDIS_BACKEND: "redis://redis:6379/1"
+  QDRANT_HOST: "qdrant"
+  QDRANT_PORT: "6333"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "docbot"
+  POSTGRES_DB: "docbot"
+  MONGODB_HOST: "mongodb"
+  MONGODB_PORT: "27017"
+  MONGODB_USER: "docbot"
+  MONGODB_DB: "docbot"
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRE_MINUTES: "1440"
+  STRATEGY_NAME: "default_strategy_02"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: docbot
+data:
+  default.conf: |
+    upstream frontend {
+        server frontend:80;
+    }
+
+    upstream backend {
+        server backend:8000;
+    }
+
+    upstream grafana {
+        server grafana:3000;
+    }
+
+    upstream minio_api {
+        server minio:9000;
+    }
+
+    upstream minio_console {
+        server minio:9001;
+    }
+
+    server {
+        listen 80;
+        server_name _;
+
+        client_max_body_size 100M;
+
+        location / {
+            proxy_pass http://frontend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /api/ {
+            proxy_pass http://backend/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_read_timeout 120s;
+            client_max_body_size 50M;
+        }
+
+        location /storage/ {
+            proxy_pass http://minio_api/;
+            proxy_set_header Host minio:9000;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_read_timeout 120s;
+            client_max_body_size 100M;
+        }
+
+        location /grafana/ {
+            proxy_pass http://grafana;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_read_timeout 60s;
+        }
+
+        location /minio/ {
+            proxy_pass http://minio_console/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 120s;
+            client_max_body_size 100M;
+        }
+    }
